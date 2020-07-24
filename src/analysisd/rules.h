@@ -82,6 +82,8 @@
 
 #define MAX_RULEINFODETAIL  32
 
+typedef struct EventList EventList;
+
 typedef struct _RuleInfoDetail {
     int type;
     char *data;
@@ -214,20 +216,26 @@ typedef struct _RuleNode {
 RuleInfoDetail *zeroinfodetails(int type, const char *data);
 int get_info_attributes(char **attributes, char **values);
 
-/* RuleInfo functions */
-RuleInfo *zerorulemember(int id,
-                         int level,
-                         int maxsize,
-                         int frequency,
-                         int timeframe,
-                         int noalert,
-                         int ignore_time,
-                         int overwrite);
+/**
+ * @brief
+ * @param id
+ * @param level
+ * @param maxsize
+ * @param frequency
+ * @param timeframe
+ * @param noalert
+ * @param ignore_time
+ * @param overwrite
+ * @param last_event_list
+ * @return
+ */
+RuleInfo *zerorulemember(int id, int level, int maxsize, int frequency,
+                         int timeframe, int noalert, int ignore_time,
+                         int overwrite, EventList **last_event_list);
 
-
-/** Rule_list Functions **/
-
-/* create the rule list */
+/**
+ * @brief Set os_analysisd_rulelist to null
+ */
 void OS_CreateRuleList(void);
 
 /* Add rule information to the list */
@@ -245,12 +253,38 @@ int OS_MarkGroup(RuleNode *r_node, RuleInfo *orig_rule);
 /* Mark IDs (if_matched_sid) */
 int OS_MarkID(RuleNode *r_node, RuleInfo *orig_rule);
 
-/* Get first rule */
+/**
+ * @brief Get first rule of os_analysisd_rulelist
+ * @return first node of os_analysisd_rulelist
+ */
 RuleNode *OS_GetFirstRule(void);
 
+/**
+ * @brief Remove rules list
+ * @param node rule node to remove
+ */
+void os_remove_rules_list(RuleNode *node);
+
+/**
+ * @brief Remove a rule
+ * @param ruleinfo rule to remove
+ */
+void os_remove_rule(RuleInfo *ruleinfo);
+
+/**
+ * @brief Call OS_CreateRuleList function
+ */
 void Rules_OP_CreateRules(void);
 
-int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_node);
+/**
+ * @brief
+ * @param rulefile
+ * @param r_node
+ * @param l_node
+ * @param last_event_list
+ * @return
+ */
+int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_node, EventList **last_event_list);
 
 int AddHash_Rule(RuleNode *node);
 

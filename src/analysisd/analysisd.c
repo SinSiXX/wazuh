@@ -530,11 +530,10 @@ int main_analysisd(int argc, char **argv)
                     if (!test_config) {
                         mdebug1("Reading decoder file %s.", *decodersfiles);
                     }
-                    if (!ReadDecodeXML(*decodersfiles)) {
+                    if (!ReadDecodeXML(*decodersfiles, &os_analysisd_decoderlist_pn, &os_analysisd_decoderlist_nopn)) {
                         merror_exit(CONFIG_ERROR, *decodersfiles);
                     }
 
-                    free(*decodersfiles);
                     decodersfiles++;
                 }
             }
@@ -551,19 +550,18 @@ int main_analysisd(int argc, char **argv)
                 char **listfiles;
                 listfiles = Config.lists;
                 while (listfiles && *listfiles) {
+
                     if (!test_config) {
                         mdebug1("Reading the lists file: '%s'", *listfiles);
                     }
-                    if (Lists_OP_LoadList(*listfiles) < 0) {
+                    if (Lists_OP_LoadList(*listfiles, &os_analysisd_cdblists) < 0) {
                         merror_exit(LISTS_ERROR, *listfiles);
                     }
-                    free(*listfiles);
+
                     listfiles++;
                 }
-                free(Config.lists);
-                Config.lists = NULL;
             }
-            Lists_OP_MakeAll(0, 0);
+            Lists_OP_MakeAll(0, 0, &os_analysisd_cdblists);
         }
 
         {
@@ -584,16 +582,12 @@ int main_analysisd(int argc, char **argv)
                     if (!test_config) {
                         mdebug1("Reading rules file: '%s'", *rulesfiles);
                     }
-                    if (Rules_OP_ReadRules(*rulesfiles, &os_analysisd_rulelist, &os_analysisd_cdblists) < 0) {
+                    if (Rules_OP_ReadRules(*rulesfiles, &os_analysisd_rulelist, &os_analysisd_cdblists, &os_analysisd_last_events) < 0) {
                         merror_exit(RULES_ERROR, *rulesfiles);
                     }
 
-                    free(*rulesfiles);
                     rulesfiles++;
                 }
-
-                free(Config.includes);
-                Config.includes = NULL;
             }
 
             /* Find all rules that require list lookups and attache the the
@@ -601,7 +595,7 @@ int main_analysisd(int argc, char **argv)
              * search thought the list of lists for the correct file during
              * rule evaluation.
              */
-            OS_ListLoadRules(&os_analysisd_cdblists);
+            OS_ListLoadRules(&os_analysisd_cdblists, &os_analysisd_cdbrules);
         }
     }
 
@@ -2340,7 +2334,7 @@ void * w_process_event_thread(__attribute__((unused)) void * id){
         stats_rule = zerorulemember(
                          STATS_MODULE,
                          Config.stats,
-                         0, 0, 0, 0, 0, 0);
+                         0, 0, 0, 0, 0, 0, &os_analysisd_last_events);
 
         if (!stats_rule) {
             merror_exit(MEM_ERROR, errno, strerror(errno));

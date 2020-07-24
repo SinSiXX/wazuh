@@ -36,27 +36,28 @@ ListNode *OS_GetFirstList()
     return (listnode_pt);
 }
 
-void OS_ListLoadRules(ListNode **l_node)
-{
-    ListRule *lrule = os_analysisd_cdbrules;
-    while (lrule != NULL) {
-        if (!lrule->loaded) {
-            lrule->db = OS_FindList(lrule->filename, *l_node);
-            lrule->loaded = 1;
+void OS_ListLoadRules(ListNode **l_node, ListRule **lrule) {
+
+    while (*lrule != NULL) {
+
+        if (!(*lrule)->loaded) {
+            (*lrule)->db = OS_FindList((*lrule)->filename, *l_node);
+            (*lrule)->loaded = 1;
         }
-        lrule = lrule->next;
+
+        *lrule = (*lrule)->next;
     }
 }
 
 /* External AddList */
-int OS_AddList(ListNode *new_listnode)
+void OS_AddList(ListNode *new_listnode, ListNode **cdblists)
 {
-    if (os_analysisd_cdblists == NULL) {
+    if (*cdblists == NULL) {
         /* First list */
-        os_analysisd_cdblists = new_listnode;
+        *cdblists = new_listnode;
     } else {
         /* Add new list to the end */
-        ListNode *last_list_node = os_analysisd_cdblists;
+        ListNode *last_list_node = *cdblists;
 
         while (last_list_node->next != NULL) {
             last_list_node = last_list_node->next;
@@ -64,7 +65,6 @@ int OS_AddList(ListNode *new_listnode)
         last_list_node->next = new_listnode;
 
     }
-    return 0;
 }
 
 ListNode *OS_FindList(const char *listname, ListNode *l_node)
@@ -323,5 +323,37 @@ int OS_DBSearch(ListRule *lrule, char *key, ListNode *l_node)
         default:
             mdebug1("lists_list.c::OS_DBSearch should never hit default");
             return 0;
+    }
+}
+
+void os_remove_cdblist(ListNode *l_node) {
+
+    ListNode *tmp;
+
+    while (l_node) {
+
+        tmp = l_node;
+        l_node = l_node->next;
+
+        os_free(tmp->cdb_filename);
+        os_free(tmp->txt_filename);
+        os_free(tmp);
+    }
+}
+
+void os_remove_cdbrules(ListRule *l_rule) {
+
+    ListRule *tmp;
+
+    while (l_rule) {
+
+        tmp = l_rule;
+        l_rule = l_rule->next;
+
+        OSMatch_FreePattern(tmp->matcher);
+        os_free(tmp->matcher);
+        os_free(tmp->dfield);
+        os_free(tmp->filename);
+        os_free(tmp);
     }
 }

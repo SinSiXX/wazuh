@@ -78,7 +78,20 @@ void *w_logtest_main(w_logtest_connection *connection) {
     char msg_received[OS_MAXSTR];
     int size_msg_received;
 
+    w_logtest_session_t *session;
+    char *msg;
+
     while(1) {
+
+        minfo("~~~~~~~ LOGTEST: Initializing session");
+        if (session = w_logtest_initialize_session("quif2843mjndfu23", &msg), session) {
+            OSHash_Add_ex(w_logtest_sessions, "quif2843mjndfu23", session);
+            minfo("~~~~~~~ LOGTEST: Initialized and added");
+            w_logtest_remove_session("quif2843mjndfu23");
+            minfo("~~~~~~~ LOGTEST: Removed");
+        } else {
+            minfo("~~~~~~~ LOGTEST: w_logtest_initialize_session return null");
+        }
 
         w_mutex_lock(&connection->mutex);
 
@@ -102,18 +115,146 @@ void *w_logtest_main(w_logtest_connection *connection) {
 }
 
 
-void w_logtest_initialize_session(int token) {
+void w_logtest_process_log(char *token) {
 
 }
 
 
-void w_logtest_process_log(int token) {
 
+w_logtest_session_t *w_logtest_initialize_session(char *token, char **msg_error) {
+
+    w_logtest_session_t *session;
+
+    char **files;
+
+    os_calloc(1, sizeof(w_logtest_session_t), session);
+
+    session->token = token;
+    session->last_connection = time(NULL);
+
+    /* Create list to save previous events */
+    os_calloc(1, sizeof(EventList), session->eventlist);
+    OS_CreateEventList(Config.memorysize, session->eventlist);
+
+    /* Load decoders */
+    session->decoderlist_forpname = NULL;
+    session->decoderlist_nopname = NULL;
+
+    files = Config.decoders;
+
+    while (files && *files) {
+        if (!ReadDecodeXML(*files, &session->decoderlist_forpname, &session->decoderlist_nopname)) {
+            return NULL;
+        }
+
+        os_free(*files);
+        files++;
+    }
+
+    /* Load CDB list */
+    session->cdblistnode = NULL;
+    session->cdblistrule = NULL;
+
+    files = Config.lists;
+
+    while (files && *files) {
+        if (Lists_OP_LoadList(*files, &session->cdblistnode) < 0) {
+            return NULL;
+        }
+
+        os_free(*files);
+        files++;
+    }
+
+    Lists_OP_MakeAll(0, 0, &session->cdblistnode);
+
+    /* Load rules */
+    session->rule_list = NULL;
+
+    files = Config.includes;
+
+    while (files && *files) {
+        if (Rules_OP_ReadRules(*files, &session->rule_list, &session->cdblistnode, &session->eventlist) < 0) {
+            return NULL;
+        }
+
+        os_free(*files);
+        files++;
+    }
+
+    /* Associate rules and CDB lists */
+    OS_ListLoadRules(&session->cdblistnode, &session->cdblistrule);
+
+    /* _setlevels */
+    _setlevels(session->rule_list, 0);
+
+    /* Creating rule hash */
+    if (session->g_rules_hash = OSHash_Create(), !session->g_rules_hash) {
+        return NULL;
+    }
+
+    AddHash_Rule(session->rule_list);
+
+    /* Initiate the FTS list */
+    if (!w_logtest_fts_init(&session->fts_list, &session->fts_store)) {
+        return NULL;
+    }
+
+    /* Initialize the Accumulator */
+    if (!Accumulate_Init(&session->acm_store, &session->acm_lookups, &session->acm_purge_ts)) {
+        return NULL;
+    }
+
+    return session;
 }
 
 
-void w_logtest_remove_session(int token) {
+void w_logtest_remove_session(char *token) {
 
+    w_logtest_session_t *session;
+
+    /* Remove session from hash */
+    if(session = OSHash_Delete_ex(w_logtest_sessions, token), !session) {
+        return;
+    }
+
+    minfo("~~~~~~~ LOGTEST: Delete hash");
+
+    /* Remove rule list and rule hash */
+    os_remove_rules_list(session->rule_list);
+    OSHash_Free(session->g_rules_hash);
+
+    minfo("~~~~~~~ LOGTEST: Delete rule list and rule hash");
+
+    /* Remove decoder list */
+    os_remove_decoders_list(session->decoderlist_forpname);
+    os_remove_decoders_list(session->decoderlist_nopname);
+
+    minfo("~~~~~~~ LOGTEST: Delete decoders");
+
+    /* Remove cdblistnode and cdblistrule */
+    os_remove_cdblist(session->cdblistnode);
+    os_remove_cdbrules(session->cdblistrule);
+
+    minfo("~~~~~~~ LOGTEST: Delete cdb lists");
+
+    /* Remove list of previous events */
+    os_remove_eventlist(session->eventlist);
+
+    minfo("~~~~~~~ LOGTEST: Delete events list");
+
+    /* Remove fts list and hash */
+    OSHash_Free(session->fts_store);
+    minfo("~~~~~~~ LOGTEST: Delete fts hash");
+    os_free(session->fts_list);
+    minfo("~~~~~~~ LOGTEST: Delete fts list");
+
+    /* Remove accumulator hash */
+    OSHash_Free(session->acm_store);
+
+    minfo("~~~~~~~ LOGTEST: Delete accumulator hash");
+
+    os_free(session);
 }
 
 
