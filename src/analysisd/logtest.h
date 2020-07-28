@@ -13,6 +13,34 @@
 #include "eventinfo.h"
 #include "../config/logtest-config.h"
 #include "../os_net/os_net.h"
+#include "../os_crypto/sha256/sha256_op.h"
+
+/* JSON REQUEST fields inputs names */
+#define JSON_INPUT_TOKEN         "token"       //< Token field name of json input
+#define JSON_INPUT_EVENT         "event"       //< Event field name of json input
+#define JSON_INPUT_LOGFORMAT     "log_format"  //< Log format field name of json input
+#define JSON_INPUT_LOCATION      "location"    //< Location field name of json input
+
+/* JSON RESPONSE fields output names */
+#define JSON_OUTPUT_TOKEN          "token"      //< Token field name of json output
+#define JSON_OUTPUT_ALERT          "alert"      //< Alert field name of json output (true/false)
+#define JSON_OUTPUT_MESSAGE      "message"      //< Message format field name of json output
+#define JSON_OUTPUT_CODE         "codemsg"      //< Code of message field name of json output (int)
+#define JSON_OUTPUT_OUTPUT        "output"      //< Output field name of json output
+
+#define TOKEN_LENGH                    64       //< Lenght of token (SHA256 size, 64 characters)
+
+/* Error messages */
+#define LOGTEST_ERROR_JSON_PARSE              "(0000) Error parsing JSON"
+#define LOGTEST_ERROR_JSON_PARSE_POS          "(0000) Error in position %i, ... %.20s ..."
+#define LOGTEST_ERROR_JSON_REQUIRED_SFIELD    "(0000)\"%s\" JSON field is required and must be a string"
+#define LOGTEST_ERROR_TOKEN_INVALID           "(0000) \"%s\" is not a valid token"
+
+/* Warning messages */
+#define LOGTEST_WARN_TOKEN_EXPIRED            "(0000) \"%s\" token expires."
+
+/* Info messages */
+#define LOGTEST_INFO_TOKEN_NEW                "(0000) \"%s\" New token"
 
 
 /**
@@ -20,7 +48,7 @@
  */
 typedef struct w_logtest_session_t {
 
-    int token;                              ///< Client ID
+    char* token;                              ///< Client ID
     time_t last_connection;                 ///< Timestamp of the last query
 
     RuleNode *rule_list;                    ///< Rule list
@@ -55,6 +83,18 @@ typedef struct w_logtest_connection {
 
 
 /**
+ * @brief A w_logtest_request instance represents a client requeset
+ */
+typedef struct w_logtest_request {
+
+    char* token;             ///< Client ID (MD5 value)
+    char* event;             ///< Log to be processed
+    char* log_format;        ///< Type of log. Syslog, syscheck_event, eventchannel, eventlog, etc
+    char* location;          ///< The origin of the log. User, agent, IP and file (if collected by Logcollector).
+
+} w_logtest_request;
+
+/**
  * @brief Initialize Wazuh Logtest. Initialize the listener and create threads
  * Then, call function w_logtest_main
  */
@@ -80,19 +120,19 @@ void *w_logtest_main(w_logtest_connection * connection);
  * @brief Create resources necessary to service client
  * @param fd File descriptor which represents the client
  */
-void w_logtest_initialize_session(int token);
+w_logtest_session_t *w_logtest_initialize_session(const char * token, char ** msg_error);
 
 /**
  * @brief Process client's request
  * @param fd File descriptor which represents the client
  */
-void w_logtest_process_log(int token);
+void w_logtest_process_log(char* token);
 
 /**
  * @brief Free resources after client closes connection
  * @param fd File descriptor which represents the client
  */
-void w_logtest_remove_session(int token);
+void w_logtest_remove_session(char* token);
 
 /**
  * @brief Check the active log-test sessions
